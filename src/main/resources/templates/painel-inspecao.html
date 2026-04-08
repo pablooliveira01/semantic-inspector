@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Semantic Inspector — Painel</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <style>
+        .inline-form select.form-control {
+            min-width: 180px;
+        }
+
+        .add-section {
+            border-top: 1px solid var(--border);
+        }
+
+        .shadow-warn td {
+            border-left: 3px solid var(--amber);
+        }
+
+        .shadow-warn td:first-child {
+            padding-left: 13px;
+        }
+
+        /* Click-to-fill hint tooltip */
+        .code-viewer-header .click-hint {
+            margin-left: auto;
+            font-family: var(--font-code);
+            font-size: 10px;
+            color: var(--text-dim);
+            background: var(--bg-hover);
+            border: 1px solid var(--border);
+            padding: 2px 8px;
+            border-radius: 4px;
+            display: none;
+        }
+
+        /* Leitura/Escrita event flash on status bar */
+        .status-bar.use-event {
+            background: #06b6d415;
+            color: var(--cyan);
+            border-color: #22d3ee33;
+        }
+
+        /* Highlight pulse on code line when symbol row hovered */
+        @keyframes linePulse {
+            0% {
+                background: rgba(77, 142, 248, 0.18);
+            }
+
+            100% {
+                background: rgba(77, 142, 248, 0.06);
+            }
+        }
+
+        .code-line.hl-hover-sym {
+            animation: linePulse .4s ease forwards;
+        }
+    </style>
+</head>
+
+<body>
+
+    <nav class="topbar">
+        <a class="topbar-brand" href="/arquivos">
+            <span class="brand-icon">⚙</span>
+            semantic-inspector
+        </a>
+        <span class="topbar-sep">/</span>
+        <a href="/arquivos"
+            style="font-size:12px;color:var(--text-muted);text-decoration:none;font-family:var(--font-code)">arquivos-fonte</a>
+        <span class="topbar-sep">/</span>
+        <span class="token-var" th:text="${arquivo.nomeArquivo}"
+            style="font-size:12px;font-family:var(--font-code)">main.c</span>
+    </nav>
+
+    <main class="page">
+
+        <div class="breadcrumb">
+            <a href="/arquivos">Arquivos</a>
+            <span>›</span>
+            <span th:text="${arquivo.nomeArquivo}">main.c</span>
+            <span>›</span>
+            <span>Inspeção semântica</span>
+        </div>
+
+        <div class="page-header flex-between" style="margin-bottom:16px;">
+            <div>
+                <div class="page-title"><span>⚙</span> Painel de Inspeção Semântica</div>
+                <p class="page-subtitle">Compilação passo a passo · Tabela de símbolos · Pilha de ativação visual</p>
+            </div>
+            <a href="/arquivos" class="btn btn-sm">← Voltar</a>
+        </div>
+
+        <!-- Controls bar -->
+        <div class="controls-bar">
+            <button class="btn btn-inspect" id="btn-next" onclick="nextStep()">▶ Compilar passo a passo</button>
+            <button class="btn" id="btn-auto" onclick="toggleAuto()">⏩ Auto</button>
+            <button class="btn" id="btn-reset" onclick="resetAll()">↺ Reiniciar</button>
+            <span class="step-counter" id="step-counter">passo 0 / <span id="total-steps">0</span></span>
+        </div>
+
+        <div class="status-bar" id="status-bar" style="margin-top:10px;">
+            Pronto — clique em "Compilar passo a passo" para iniciar a análise léxico-semântica.
+        </div>
+
+        <!-- Inspector layout -->
+        <div class="inspector-layout">
+
+            <!-- ── Code viewer ── -->
+            <div>
+                <div class="code-viewer">
+                    <div class="code-viewer-header">
+                        <div class="code-dots">
+                            <span style="background:#f85149"></span>
+                            <span style="background:#d29922"></span>
+                            <span style="background:#3ecf8e"></span>
+                        </div>
+                        <span class="code-filename" th:text="${arquivo.nomeArquivo}">main.c</span>
+                        <span class="click-hint" id="click-hint">clique em uma palavra para preencher o
+                            formulário</span>
+                    </div>
+                    <div class="code-body" id="code-body">
+                        <!-- Rendered by JS -->
+                    </div>
+                </div>
+
+                <script th:inline="javascript">
+                    const RAW_CODE = /*[[${arquivo.codigoConteudo}]]*/ '';
+                </script>
+            </div>
+
+            <!-- ── Right column ── -->
+            <div class="inspector-right">
+
+                <!-- 1. Scope tree -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-header-title">🌳 Árvore de Escopos Léxicos</span>
+                        <span class="card-header-badge" th:text="${#lists.size(arquivo.escopos)} + ' escopo(s)'"
+                            id="scope-count-badge">0</span>
+                    </div>
+                    <div class="card-body" style="padding-bottom:8px;">
+                        <div class="scope-tree" id="scope-tree-live">
+                            <th:block th:each="esc : ${arquivo.escopos}">
+                                <div class="scope-item scope-item-anim visible"
+                                    th:classappend="${esc.nivelProfundidade == 1 ? 'scope-indent-1' : (esc.nivelProfundidade >= 2 ? 'scope-indent-2' : '')}"
+                                    th:attr="data-level=${esc.nivelProfundidade}">
+                                    <div class="scope-dot" th:style="${esc.nivelProfundidade == 0 ? 'background:#a78bfa' :
+                  esc.nivelProfundidade == 1 ? 'background:#3ecf8e' : 'background:#f0b429'}"></div>
+                                    <span class="scope-name" th:text="${esc.nomeEscopo}">Global</span>
+                                    <span class="scope-level" th:text="'nível ' + ${esc.nivelProfundidade}">0</span>
+                                    <a th:href="@{'/inspecao/escopo/delete/' + ${esc.id}}" class="btn btn-danger btn-sm"
+                                        style="margin-left:4px;"
+                                        onclick="return confirm('Excluir este escopo e todos os seus símbolos?')">✕</a>
+                                </div>
+                            </th:block>
+                            <div th:if="${#lists.isEmpty(arquivo.escopos)}"
+                                style="color:var(--text-dim);font-size:12px;padding:8px 0;font-family:var(--font-code)">
+                                Nenhum escopo mapeado ainda.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="add-section">
+                        <form th:action="@{'/inspecao/escopo/salvar/' + ${arquivo.id}}" method="post"
+                            class="inline-form">
+                            <div class="form-group">
+                                <label class="form-label">Nome do escopo</label>
+                                <input type="text" name="nomeEscopo" class="form-control"
+                                    placeholder="ex: Função main, Bloco if" required />
+                            </div>
+                            <div class="form-group" style="max-width:120px;">
+                                <label class="form-label">Nível</label>
+                                <input type="number" name="nivelProfundidade" class="form-control"
+                                    placeholder="0, 1, 2…" min="0" required />
+                            </div>
+                            <div class="form-group" style="flex:0;align-self:flex-end;">
+                                <button type="submit" class="btn btn-success">+ Escopo</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- 2. Symbol table with reverse-hover + click-to-fill -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-header-title">📋 Tabela de Símbolos</span>
+                        <span class="card-header-badge" id="sym-count-badge">
+                            <th:block th:with="total=0">
+                                <th:block th:each="esc : ${arquivo.escopos}"
+                                    th:with="total=${total + #lists.size(esc.simbolos)}"></th:block>
+                                <span th:text="${total} + ' símbolo(s)'">0</span>
+                            </th:block>
+                        </span>
+                    </div>
+
+                    <div th:if="${not #lists.isEmpty(arquivo.escopos)}">
+                        <table id="sym-table">
+                            <thead>
+                                <tr>
+                                    <th>Escopo</th>
+                                    <th>Lexema</th>
+                                    <th>Tipo</th>
+                                    <th>Linha</th>
+                                    <th>Usos</th>
+                                    <th>Info</th>
+                                    <th style="width:60px"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="sym-tbody">
+                                <th:block th:each="esc : ${arquivo.escopos}">
+                                    <tr class="sym-row visible" th:each="simb : ${esc.simbolos}"
+                                        th:attr="data-line=${simb.linhaDeclaracao}, data-lexema=${simb.lexema}, data-tipo=${simb.tipoDado}, data-escopo-id=${esc.id}"
+                                        th:classappend="${simb.lexema == 'x' and esc.nivelProfundidade > 0 ? ' shadow-warn' : ''}">
+                                        <td>
+                                            <span class="badge" th:classappend="${esc.nivelProfundidade == 0 ? 'badge-purple' :
+                        esc.nivelProfundidade == 1 ? 'badge-green' : 'badge-amber'}"
+                                                th:text="${esc.nomeEscopo}">Global</span>
+                                        </td>
+                                        <td><span class="token-var" th:text="${simb.lexema}">x</span></td>
+                                        <td><span class="token-type" th:text="${simb.tipoDado}">int</span></td>
+                                        <td><span class="token-num" th:text="${simb.linhaDeclaracao}">1</span></td>
+                                        <td>
+                                            <!-- Usos do símbolo (leitura / escrita) -->
+                                            <div style="display:flex;gap:3px;flex-wrap:wrap;">
+                                                <th:block th:each="uso : ${simb.usos}">
+                                                    <span th:if="${uso.tipoOperacao == 'Leitura'}"
+                                                        class="use-indicator use-read"
+                                                        th:title="'Linha ' + ${uso.linhaCodigo}">
+                                                        ↓ L<span th:text="${uso.linhaCodigo}"></span>
+                                                    </span>
+                                                    <span th:if="${uso.tipoOperacao == 'Escrita'}"
+                                                        class="use-indicator use-write"
+                                                        th:title="'Linha ' + ${uso.linhaCodigo}">
+                                                        ↑ E<span th:text="${uso.linhaCodigo}"></span>
+                                                    </span>
+                                                </th:block>
+                                                <span th:if="${#lists.isEmpty(simb.usos)}"
+                                                    style="color:var(--text-dim);font-size:10px;font-family:var(--font-code)">—</span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge badge-amber"
+                                                th:if="${esc.nivelProfundidade > 0}">shadowing?</span>
+                                            <span class="badge badge-purple"
+                                                th:if="${esc.nivelProfundidade == 0}">global</span>
+                                        </td>
+                                        <td>
+                                            <a th:href="@{'/inspecao/simbolo/delete/' + ${simb.id}}"
+                                                class="btn btn-danger btn-sm"
+                                                onclick="return confirm('Excluir este símbolo?')">✕</a>
+                                        </td>
+                                    </tr>
+                                </th:block>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div th:if="${#lists.isEmpty(arquivo.escopos)}" class="empty-state">
+                        <div class="empty-icon">📭</div>
+                        <p>Cadastre ao menos um escopo para adicionar símbolos.</p>
+                    </div>
+
+                    <!-- Form: add symbol — fields are filled by click-to-fill -->
+                    <div class="add-section" th:if="${not #lists.isEmpty(arquivo.escopos)}">
+                        <form th:action="@{'/inspecao/simbolo/salvar/' + ${arquivo.id}}" method="post"
+                            class="inline-form" style="flex-wrap:wrap;" id="sym-form">
+                            <div class="form-group" style="min-width:180px;">
+                                <label class="form-label">Escopo</label>
+                                <select name="escopoId" class="form-control" id="form-escopo-id" required>
+                                    <option value="">— selecione —</option>
+                                    <option th:each="esc : ${arquivo.escopos}" th:value="${esc.id}"
+                                        th:text="${esc.nomeEscopo}">Global</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Lexema</label>
+                                <input type="text" name="lexema" id="form-lexema" class="form-control"
+                                    placeholder="ex: contador" required />
+                            </div>
+                            <div class="form-group" style="max-width:100px;">
+                                <label class="form-label">Tipo</label>
+                                <input type="text" name="tipoDado" id="form-tipo" class="form-control" placeholder="int"
+                                    required />
+                            </div>
+                            <div class="form-group" style="max-width:80px;">
+                                <label class="form-label">Linha</label>
+                                <input type="number" name="linhaDeclaracao" id="form-linha" class="form-control"
+                                    placeholder="1" min="1" required />
+                            </div>
+                            <div class="form-group" style="flex:0;align-self:flex-end;">
+                                <button type="submit" class="btn btn-success">+ Símbolo</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- 3. Activation stack — visual blocks -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-header-title">📦 Pilha de Ativação</span>
+                        <span class="card-header-badge">stack frames · simulação runtime</span>
+                    </div>
+                    <div class="card-body">
+                        <div id="stack-sp-label" class="mem-sp-label" style="display:none;">SP (stack pointer) ↑</div>
+                        <div id="stack-pointer-row" class="stack-pointer" style="display:none;">
+                            <span class="stack-pointer-arrow">▶</span>
+                            <span id="stack-pointer-label"
+                                style="font-family:var(--font-code);font-size:10px;color:var(--amber)">topo da
+                                pilha</span>
+                        </div>
+                        <div class="mem-stack" id="mem-stack">
+                            <div style="font-size:12px;color:var(--text-dim);text-align:center;padding:20px 0;font-family:var(--font-code);"
+                                id="mem-empty">
+                                Inicie a compilação para visualizar a pilha de ativação.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- /.inspector-right -->
+        </div><!-- /.inspector-layout -->
+
+    </main>
+
+    <!-- =====================================================================
+     ANIMATION ENGINE
+     Improvements:
+     1. Reverse hover: hovering symbol row ↔ highlights code line
+     2. Click-to-fill: clicking word in code prefills the symbol form
+     3. usos_simbolo: read/write events shown in status bar during animation
+     4. Visual stack frames: real stacked blocks instead of text list
+     ===================================================================== -->
+    <script>
+        (function () {
+
+            /* ── Collect DOM data from Thymeleaf ── */
+            const scopeEls = document.querySelectorAll('#scope-tree-live .scope-item-anim');
+            const symRows = document.querySelectorAll('#sym-tbody .sym-row');
+            const codeBody = document.getElementById('code-body');
+
+            /* ── Render code lines ── */
+            const rawLines = RAW_CODE.split('\n');
+
+            // Simple tokenizer for keyword/number highlight
+            function tokenizeLine(line) {
+                const keywords = /\b(int|float|double|char|bool|string|void|return|if|else|while|for|do|class|public|private|static|final|const|let|var|def|print|println|fn|func|import|from|new|this|super|null|true|false|None|True|False)\b/g;
+                const numbers = /\b(\d+\.?\d*)\b/g;
+                const strings = /(["'`])(?:\\.|(?!\1)[^\\])*\1/g;
+                const comments = /(\/\/.*$|\/\*[\s\S]*?\*\/|#.*$)/gm;
+
+                let esc = line
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+
+                esc = esc
+                    .replace(comments, m => `<span style="color:var(--text-dim)">${m}</span>`)
+                    .replace(strings, m => `<span style="color:#a5d6ff">${m}</span>`)
+                    .replace(keywords, m => `<span style="color:#ff7b72">${m}</span>`)
+                    .replace(numbers, m => `<span style="color:#79c0ff">${m}</span>`);
+
+                return esc;
+            }
+
+            rawLines.forEach((line, i) => {
+                const div = document.createElement('div');
+                div.className = 'code-line';
+                div.id = 'cl-' + (i + 1);
+                div.dataset.lineNum = i + 1;
+                const tok = tokenizeLine(line);
+                div.innerHTML = `<span class="line-num">${i + 1}</span><span class="code-text">${tok}</span>`;
+                codeBody.appendChild(div);
+            });
+
+            /* ══════════════════════════════════════════════════
+               IMPROVEMENT 2: Click-to-fill
+               Clicking any word in the code viewer fills the
+               Lexema and Linha fields in the symbol form.
+               ══════════════════════════════════════════════════ */
+            const formLexema = document.getElementById('form-lexema');
+            const formLinha = document.getElementById('form-linha');
+            const clickHint = document.getElementById('click-hint');
+
+            if (formLexema) {
+                clickHint.style.display = 'block';
+
+                codeBody.addEventListener('click', (e) => {
+                    const codeLine = e.target.closest('.code-line');
+                    if (!codeLine) return;
+
+                    // Get clicked word from the text
+                    const lineNum = parseInt(codeLine.dataset.lineNum);
+                    const rawLine = rawLines[lineNum - 1] || '';
+
+                    // Extract word near click position using selection API
+                    const sel = window.getSelection();
+                    let word = '';
+                    if (sel && sel.toString().trim()) {
+                        word = sel.toString().trim();
+                    } else {
+                        // Try to find word at mouse position in the raw line
+                        const range = document.caretRangeFromPoint
+                            ? document.caretRangeFromPoint(e.clientX, e.clientY)
+                            : null;
+                        if (range) {
+                            const node = range.startContainer;
+                            if (node.nodeType === Node.TEXT_NODE) {
+                                const text = node.textContent;
+                                const offset = range.startOffset;
+                                let start = offset, end = offset;
+                                while (start > 0 && /\w/.test(text[start - 1])) start--;
+                                while (end < text.length && /\w/.test(text[end])) end++;
+                                word = text.slice(start, end);
+                            }
+                        }
+                    }
+
+                    if (!word || !/^[a-zA-Z_]\w*$/.test(word)) return;
+
+                    // Determine probable type by looking at the line
+                    let tipo = '';
+                    const typeMatch = rawLine.match(/\b(int|float|double|char|bool|string|void|long|short)\b/);
+                    if (typeMatch) tipo = typeMatch[1];
+
+                    // Fill form fields
+                    formLexema.value = word;
+                    formLinha.value = lineNum;
+                    if (tipo && document.getElementById('form-tipo')) {
+                        document.getElementById('form-tipo').value = tipo;
+                    }
+
+                    // Animate filled fields
+                    [formLexema, formLinha, document.getElementById('form-tipo')].forEach(f => {
+                        if (!f || !f.value) return;
+                        f.classList.remove('field-filled');
+                        void f.offsetWidth;
+                        f.classList.add('field-filled');
+                        setTimeout(() => f.classList.remove('field-filled'), 600);
+                    });
+
+                    // Pulse the code line
+                    codeLine.classList.add('hl-hover-sym');
+                    setTimeout(() => codeLine.classList.remove('hl-hover-sym'), 600);
+
+                    // Scroll form into view
+                    formLexema.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    formLexema.focus();
+                });
+            }
+
+            /* ══════════════════════════════════════════════════
+               IMPROVEMENT 1: Reverse hover
+               Hovering a symbol row highlights the corresponding
+               code line and flashes the scope node.
+               ══════════════════════════════════════════════════ */
+            symRows.forEach((row) => {
+                const declarationLine = parseInt(row.getAttribute('data-line')) || 0;
+
+                row.addEventListener('mouseenter', () => {
+                    row.classList.add('reverse-hover');
+                    if (declarationLine > 0) {
+                        const lineEl = document.getElementById('cl-' + declarationLine);
+                        if (lineEl) {
+                            lineEl.classList.add('hl-hover-sym');
+                            lineEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        }
+                    }
+                });
+
+                row.addEventListener('mouseleave', () => {
+                    row.classList.remove('reverse-hover');
+                    if (declarationLine > 0) {
+                        const lineEl = document.getElementById('cl-' + declarationLine);
+                        if (lineEl) lineEl.classList.remove('hl-hover-sym');
+                    }
+                });
+            });
+
+            /* ── Collect symbol/scope metadata ── */
+            const symData = [];
+            symRows.forEach(row => {
+                const tds = row.querySelectorAll('td');
+                if (tds.length >= 4) {
+                    // Collect usos from the Usos column (td index 4)
+                    const usoEls = tds[4] ? tds[4].querySelectorAll('.use-indicator') : [];
+                    const usos = [];
+                    usoEls.forEach(u => {
+                        const tipo = u.classList.contains('use-read') ? 'Leitura' : 'Escrita';
+                        const lineMatch = u.textContent.match(/\d+/);
+                        usos.push({ tipo, linha: lineMatch ? parseInt(lineMatch[0]) : 0 });
+                    });
+
+                    symData.push({
+                        escopo: tds[0].textContent.trim(),
+                        lexema: tds[1].textContent.trim(),
+                        tipo: tds[2].textContent.trim(),
+                        linha: parseInt(tds[3].textContent.trim()) || 1,
+                        isShadow: row.classList.contains('shadow-warn'),
+                        usos
+                    });
+                }
+            });
+
+            const scopeData = [];
+            scopeEls.forEach(el => {
+                scopeData.push({
+                    nome: el.querySelector('.scope-name')?.textContent.trim() || '',
+                    nivel: parseInt(el.getAttribute('data-level')) || 0
+                });
+            });
+
+            /* ── Build steps ── */
+            const symSorted = [...symData].sort((a, b) => a.linha - b.linha);
+            const steps = [];
+            const visibleScopes = new Set();
+            const visibleSyms = new Set();
+            const memStack = [];
+
+            function mkStatus(text, cls) { return { text, cls }; }
+
+            const rootScope = scopeData.find(s => s.nivel === 0);
+            if (rootScope) {
+                visibleScopes.add(0);
+                steps.push({
+                    code: [], scopeIdx: [0], symIdx: [], mem: [],
+                    scopeFlash: 0, symFlash: -1,
+                    status: mkStatus('Início da análise — escopo global aberto (nível 0).', 'info'),
+                    useEvents: []
+                });
+            }
+
+            symSorted.forEach((sym, si) => {
+                const escopoIdx = scopeData.findIndex(s => s.nome === sym.escopo);
+                if (escopoIdx >= 0) visibleScopes.add(escopoIdx);
+                visibleSyms.add(si);
+
+                const frameKey = sym.escopo;
+                if (!memStack.includes(frameKey)) memStack.push(frameKey);
+
+                const statusText = sym.isShadow
+                    ? `⚠ Linha ${sym.linha}: "${sym.lexema}" re-declarado em "${sym.escopo}" — SHADOWING detectado! Variável de escopo externo fica oculta.`
+                    : `Linha ${sym.linha}: declaração de ${sym.tipo} ${sym.lexema} em "${sym.escopo}".`;
+
+                steps.push({
+                    code: [sym.linha], scopeIdx: Array.from(visibleScopes),
+                    symIdx: Array.from(visibleSyms), mem: [...memStack],
+                    scopeFlash: escopoIdx, symFlash: si,
+                    isShadow: sym.isShadow,
+                    status: mkStatus(statusText, sym.isShadow ? 'warn' : 'info'),
+                    useEvents: []
+                });
+
+                /* ══════════════════════════════════════════════════
+                   IMPROVEMENT 3: Show usos_simbolo read/write events
+                   Each uso gets its own step showing leitura/escrita
+                   ══════════════════════════════════════════════════ */
+                sym.usos.forEach(uso => {
+                    const icon = uso.tipo === 'Leitura' ? '↓ 📖' : '↑ ✏️';
+                    const cls = uso.tipo === 'Leitura' ? 'read' : 'info';
+                    const color = uso.tipo === 'Leitura' ? 'var(--cyan)' : 'var(--green)';
+                    steps.push({
+                        code: [uso.linha], scopeIdx: Array.from(visibleScopes),
+                        symIdx: Array.from(visibleSyms), mem: [...memStack],
+                        scopeFlash: -1, symFlash: si,
+                        isShadow: false,
+                        useEventFlash: si,
+                        useEventType: uso.tipo,
+                        status: mkStatus(
+                            `${icon} Linha ${uso.linha}: ${uso.tipo} da variável "${sym.lexema}" (${sym.tipo}) em "${sym.escopo}"`,
+                            cls
+                        ),
+                        useEvents: [{ linha: uso.linha, lexema: sym.lexema, tipo: uso.tipo, color }]
+                    });
+                });
+            });
+
+            steps.push({
+                code: [], scopeIdx: Array.from({ length: scopeData.length }, (_, i) => i),
+                symIdx: Array.from({ length: symData.length }, (_, i) => i),
+                mem: [...memStack], scopeFlash: -1, symFlash: -1,
+                status: mkStatus('✓ Análise semântica concluída. Todos os símbolos foram registrados.', 'ok'),
+                useEvents: []
+            });
+
+            document.getElementById('total-steps').textContent = steps.length;
+
+            /* ── Hide all initially ── */
+            function hideAll() {
+                scopeEls.forEach(el => el.classList.remove('visible', 'flash'));
+                symRows.forEach(el => el.classList.remove('visible', 'flash-green', 'flash-amber', 'flash-blue'));
+                document.querySelectorAll('.code-line').forEach(el =>
+                    el.classList.remove('hl-active', 'hl-done', 'hl-hover-sym'));
+                buildMemStack([]);
+            }
+            hideAll();
+
+            /* ══════════════════════════════════════════════════
+               IMPROVEMENT 4: Visual stack frames
+               Build stacked block elements instead of text list
+               ══════════════════════════════════════════════════ */
+            const blockColors = ['#a78bfa', '#3ecf8e', '#f0b429', '#4d8ef8', '#22d3ee'];
+
+            function buildMemStack(frameNames) {
+                const memEl = document.getElementById('mem-stack');
+                const emptyEl = document.getElementById('mem-empty');
+
+                if (frameNames.length === 0) {
+                    memEl.innerHTML = '';
+                    memEl.appendChild(
+                        Object.assign(document.createElement('div'), {
+                            id: 'mem-empty',
+                            style: 'font-size:12px;color:var(--text-dim);text-align:center;padding:20px 0;font-family:var(--font-code);',
+                            textContent: 'Inicie a compilação para visualizar a pilha de ativação.'
+                        })
+                    );
+                    document.getElementById('stack-pointer-row').style.display = 'none';
+                    document.getElementById('stack-sp-label').style.display = 'none';
+                    return;
+                }
+
+                // FIX 1: Remove a mensagem de "pilha vazia" se houver itens
+                if (emptyEl) emptyEl.remove();
+
+                document.getElementById('stack-sp-label').style.display = 'block';
+                document.getElementById('stack-pointer-row').style.display = 'flex';
+
+                // Get existing block ids
+                const existingIds = new Set(
+                    Array.from(memEl.querySelectorAll('.mem-block')).map(el => el.dataset.frameId)
+                );
+
+                // Remove blocks that are no longer in stack (popping animation)
+                memEl.querySelectorAll('.mem-block').forEach(el => {
+                    if (!frameNames.includes(el.dataset.frameId)) {
+                        el.classList.add('popping');
+                        setTimeout(() => el.remove(), 280);
+                    }
+                });
+
+                // Add new blocks
+                frameNames.forEach((frameName, fi) => {
+                    if (existingIds.has(frameName)) return; // already exists
+
+                    const scopeObj = scopeData.find(s => s.nome === frameName);
+                    const nivel = scopeObj ? scopeObj.nivel : fi;
+                    const color = blockColors[nivel % blockColors.length];
+                    const addr = '0x' + (0xAFF0 - fi * 0x100).toString(16).toUpperCase();
+
+                    const block = document.createElement('div');
+                    block.className = 'mem-block';
+                    block.dataset.frameId = frameName;
+
+                    // FIX 2: Inicia o bloco vazio e deixa o updateMemBlockVars preencher para evitar duplicatas
+                    block.innerHTML = `
+        <div class="mem-block-header">
+          <div class="mem-block-color-strip" style="background:${color}"></div>
+          <span class="mem-block-title">${frameName}</span>
+          <span class="mem-block-tag">nível ${nivel}</span>
+        </div>
+        <div class="mem-block-vars"><span class="empty-vars-msg" style="color:var(--text-dim);font-size:10px;font-family:var(--font-code)">vazio</span></div>
+        <div class="mem-addr">${addr}</div>`;
+
+                    memEl.appendChild(block);
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => block.classList.add('visible'));
+                    });
+                });
+
+                // Update SP label
+                const topFrame = frameNames[frameNames.length - 1];
+                document.getElementById('stack-pointer-label').textContent = `SP → ${topFrame}`;
+            }
+
+            /* ── Update existing mem block vars ── */
+            function updateMemBlockVars(frameName, visibleSymIndices) {
+                const block = document.querySelector(`.mem-block[data-frame-id="${frameName}"]`);
+                if (!block) return;
+
+                const vars = symData
+                    .filter((s, i) => s.escopo === frameName && visibleSymIndices.includes(i));
+                const varsDiv = block.querySelector('.mem-block-vars');
+                if (!varsDiv) return;
+
+                // FIX 2.1: Remove o texto "vazio" se houver variáveis chegando
+                if (vars.length > 0) {
+                    const emptyMsg = varsDiv.querySelector('.empty-vars-msg');
+                    if (emptyMsg) emptyMsg.remove();
+                }
+
+                const existing = new Set(
+                    Array.from(varsDiv.querySelectorAll('.mem-var-chip')).map(c => c.dataset.varName)
+                );
+
+                vars.forEach(v => {
+                    if (!existing.has(v.lexema)) {
+                        const chip = document.createElement('span');
+                        chip.className = 'mem-var-chip chip-new';
+                        chip.dataset.varName = v.lexema; // Essencial para rastrear e não duplicar
+                        chip.innerHTML = `
+          <span class="chip-name">${v.lexema}</span>
+          <span class="chip-colon">:</span>
+          <span class="chip-type">${v.tipo}</span>`;
+                        varsDiv.appendChild(chip);
+                    }
+                });
+            }
+
+            /* ── Apply a step ── */
+            function applyStep(idx) {
+                const s = steps[idx];
+
+                // Code highlight
+                document.querySelectorAll('.code-line').forEach(el =>
+                    el.classList.remove('hl-active', 'hl-hover-sym'));
+                s.code.forEach(ln => {
+                    const el = document.getElementById('cl-' + ln);
+                    if (el) {
+                        el.classList.add('hl-active');
+                        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        for (let i = 1; i < ln; i++) {
+                            const prev = document.getElementById('cl-' + i);
+                            if (prev) prev.classList.add('hl-done');
+                        }
+                    }
+                });
+
+                // Scopes
+                s.scopeIdx.forEach(i => {
+                    const el = scopeEls[i]; if (!el) return;
+                    el.classList.add('visible');
+                    if (s.scopeFlash === i) {
+                        setTimeout(() => {
+                            el.classList.add('flash');
+                            setTimeout(() => el.classList.remove('flash'), 800);
+                        }, 80);
+                    }
+                });
+
+                // Symbol rows
+                s.symIdx.forEach(i => {
+                    const el = symRows[i]; if (!el) return;
+                    el.classList.add('visible');
+                    if (s.symFlash === i) {
+                        setTimeout(() => {
+                            el.classList.remove('flash-green', 'flash-amber', 'flash-blue');
+                            el.classList.add(s.isShadow ? 'flash-amber' : 'flash-green');
+                        }, 150);
+                    }
+                    if (s.useEventFlash === i && s.useEventType) {
+                        setTimeout(() => {
+                            el.classList.remove('flash-green', 'flash-amber', 'flash-blue');
+                            el.classList.add('flash-blue');
+                        }, 150);
+                    }
+                });
+
+                // Stack frames
+                buildMemStack(s.mem);
+                s.symIdx.forEach(i => {
+                    if (symData[i]) updateMemBlockVars(symData[i].escopo, s.symIdx);
+                });
+
+                // Status bar
+                const sb = document.getElementById('status-bar');
+                sb.className = 'status-bar ' + (s.status.cls || '');
+                const pulse = (s.status.cls === 'info' || s.status.cls === 'read')
+                    ? '<span class="status-pulse"></span>' : '';
+                sb.innerHTML = pulse + s.status.text;
+
+                // Counter
+                document.getElementById('step-counter').textContent = `passo ${idx + 1} / ${steps.length}`;
+
+                // Button state
+                const btnNext = document.getElementById('btn-next');
+                if (idx >= steps.length - 1) {
+                    btnNext.textContent = '✓ Análise concluída';
+                    btnNext.disabled = true;
+                    document.getElementById('btn-auto').disabled = true;
+                    if (autoTimer) { clearInterval(autoTimer); autoTimer = null; document.getElementById('btn-auto').textContent = '⏩ Auto'; }
+                } else {
+                    btnNext.textContent = '▶ Próximo passo';
+                    btnNext.disabled = false;
+                }
+            }
+
+            /* ── Controls ── */
+            let current = -1;
+            let autoTimer = null;
+
+            window.nextStep = function () {
+                if (current >= steps.length - 1) return;
+                current++;
+                applyStep(current);
+            };
+
+            window.toggleAuto = function () {
+                const btn = document.getElementById('btn-auto');
+                if (autoTimer) {
+                    clearInterval(autoTimer); autoTimer = null;
+                    btn.textContent = '⏩ Auto';
+                } else {
+                    btn.textContent = '⏸ Pausar';
+                    autoTimer = setInterval(() => {
+                        if (current >= steps.length - 1) {
+                            clearInterval(autoTimer); autoTimer = null;
+                            btn.textContent = '⏩ Auto'; return;
+                        }
+                        nextStep();
+                    }, 1600);
+                }
+            };
+
+            window.resetAll = function () {
+                if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+                document.getElementById('btn-auto').textContent = '⏩ Auto';
+                current = -1;
+                hideAll();
+                const sb = document.getElementById('status-bar');
+                sb.className = 'status-bar';
+                sb.textContent = 'Pronto — clique em "Compilar passo a passo" para iniciar a análise léxico-semântica.';
+                document.getElementById('step-counter').textContent = `passo 0 / ${steps.length}`;
+                document.getElementById('btn-next').textContent = '▶ Compilar passo a passo';
+                document.getElementById('btn-next').disabled = false;
+                document.getElementById('btn-auto').disabled = false;
+            };
+
+            if (steps.length <= 1) {
+                document.getElementById('btn-next').disabled = true;
+                document.getElementById('btn-auto').disabled = true;
+                const sb = document.getElementById('status-bar');
+                sb.className = 'status-bar warn';
+                sb.textContent = 'Cadastre escopos e símbolos acima para ativar a simulação de compilação.';
+            }
+
+        })();
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Semantic Inspector — Arquivos</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+
+<body>
+
+    <nav class="topbar">
+        <a class="topbar-brand" href="/arquivos">
+            <span class="brand-icon">⚙</span>
+            semantic-inspector
+        </a>
+        <span class="topbar-sep">/</span>
+        <span style="font-size:12px;color:var(--text-muted);font-family:var(--font-code)">arquivos-fonte</span>
+        <div class="topbar-nav">
+            <a class="topbar-link" href="https://inf.ufg.br" target="_blank">UFG — INF</a>
+        </div>
+    </nav>
+
+    <main class="page">
+
+        <div class="page-header flex-between">
+            <div>
+                <div class="page-title">
+                    <span>📂</span> Arquivos Fonte
+                </div>
+                <p class="page-subtitle">Repositório de códigos-fonte para análise semântica e inspeção de tabela de
+                    símbolos.</p>
+            </div>
+            <a href="/arquivos/novo" class="btn btn-primary">+ Novo arquivo</a>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-header-title">📄 Repositório de Códigos-Fonte</span>
+                <span class="card-header-badge" th:text="${#lists.size(arquivos)} + ' arquivo(s)'">0 arquivo(s)</span>
+            </div>
+
+            <div th:if="${not #lists.isEmpty(arquivos)}">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width:50px">ID</th>
+                            <th>Nome do Arquivo</th>
+                            <th>Inserção</th>
+                            <th>Preview</th>
+                            <th style="width:240px">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="arq : ${arquivos}">
+                            <td><span class="badge badge-blue" th:text="'#' + ${arq.id}">#1</span></td>
+                            <td><span class="token-var" th:text="${arq.nomeArquivo}">main.c</span></td>
+                            <td>
+                                <span class="text-muted" style="font-family:var(--font-code);font-size:11px;"
+                                    th:text="${#temporals.format(arq.dataAnalise, 'dd/MM/yyyy HH:mm')}">10/04/2026</span>
+                            </td>
+                            <td>
+                                <span class="code-preview" th:text="${#strings.length(arq.codigoConteudo) > 55
+                  ? #strings.substring(arq.codigoConteudo, 0, 55) + '…'
+                  : arq.codigoConteudo}">
+                                    int x = 10;…
+                                </span>
+                            </td>
+                            <td>
+                                <div class="flex-gap">
+                                    <a th:href="@{'/inspecao/' + ${arq.id}}" class="btn btn-inspect btn-sm">🔍
+                                        Inspecionar</a>
+                                    <a th:href="@{'/arquivos/edit/' + ${arq.id}}" class="btn btn-sm">Editar</a>
+                                    <a th:href="@{'/arquivos/delete/' + ${arq.id}}" class="btn btn-danger btn-sm"
+                                        onclick="return confirm('Isso apagará todos os escopos e símbolos deste arquivo. Tem certeza?')">✕</a>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div th:if="${#lists.isEmpty(arquivos)}" class="empty-state">
+                <div class="empty-icon">📭</div>
+                <p>Nenhum código-fonte cadastrado ainda.</p>
+                <a href="/arquivos/novo" class="btn btn-primary mt-16">+ Cadastrar primeiro arquivo</a>
+            </div>
+        </div>
+
+        <p style="margin-top:32px;font-size:11px;color:var(--text-dim);text-align:center;font-family:var(--font-code);">
+            Universidade Federal de Goiás · Instituto de Informática
+            de Campos
+        </p>
+
+    </main>
+</body>
+
+</html>

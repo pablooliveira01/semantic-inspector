@@ -1,0 +1,36 @@
+@startuml
+title Modelo Relacional (ER)
+
+class arquivos_fonte {
+    id : bigint
+    nome_arquivo : varchar
+    codigo_conteudo : text
+}
+
+class escopos {
+    id : bigint
+    nome_escopo : varchar
+    nivel_profundidade : int
+    arquivo_id : bigint
+}
+
+class simbolos {
+    id : bigint
+    lexema : varchar
+    tipo_dado : varchar
+    linha_declaracao : int
+    escopo_id : bigint
+}
+
+class usos_simbolo {
+    id : bigint
+    tipo_operacao : varchar
+    linha_codigo : int
+    simbolo_id : bigint
+}
+
+arquivos_fonte "1" --> "N" escopos : possui
+escopos "1" --> "N" simbolos : declara
+simbolos "1" --> "N" usos_simbolo : registra
+
+@enduml

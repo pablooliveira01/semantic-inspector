@@ -1,0 +1,19 @@
+@startuml
+title Execução do Debugger Semântico
+
+actor Usuario
+participant "Frontend (JS)" as FE
+participant "Controller" as BE
+participant "Banco de Dados" as DB
+
+Usuario -> FE : Clica "Compilar passo a passo"
+FE -> BE : GET /dados-inspecao
+BE -> DB : Buscar escopos + símbolos
+DB --> BE : Dados
+BE --> FE : JSON estruturado
+
+loop passos da simulação
+    FE -> FE : Atualiza UI (escopo, tabela, stack)
+end
+
+@enduml

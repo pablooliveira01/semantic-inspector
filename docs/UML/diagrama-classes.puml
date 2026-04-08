@@ -1,0 +1,33 @@
+@startuml
+title Diagrama de Classes — Semantic Inspector
+
+class ArquivoFonte {
+    id: Long
+    nomeArquivo: String
+    codigoConteudo: String
+}
+
+class Escopo {
+    id: Long
+    nomeEscopo: String
+    nivelProfundidade: int
+}
+
+class Simbolo {
+    id: Long
+    lexema: String
+    tipoDado: String
+    linhaDeclaracao: int
+}
+
+class UsoSimbolo {
+    id: Long
+    tipoOperacao: String
+    linhaCodigo: int
+}
+
+ArquivoFonte "1" --> "N" Escopo
+Escopo "1" --> "N" Simbolo
+Simbolo "1" --> "N" UsoSimbolo
+
+@enduml

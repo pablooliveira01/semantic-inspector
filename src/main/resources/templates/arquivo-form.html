@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Semantic Inspector — Arquivo</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+
+<body>
+
+    <nav class="topbar">
+        <a class="topbar-brand" href="/arquivos">
+            <span class="brand-icon">⚙</span>
+            semantic-inspector
+        </a>
+        <span class="topbar-sep">/</span>
+        <a href="/arquivos"
+            style="font-size:12px;color:var(--text-muted);text-decoration:none;font-family:var(--font-code)">arquivos-fonte</a>
+        <span class="topbar-sep">/</span>
+        <span style="font-size:12px;color:var(--text-muted);font-family:var(--font-code)"
+            th:text="${arquivo.id == null ? 'novo' : 'editar #' + arquivo.id}">novo</span>
+    </nav>
+
+    <main class="page">
+
+        <div class="breadcrumb">
+            <a href="/arquivos">Arquivos</a>
+            <span class="topbar-sep">›</span>
+            <span th:text="${arquivo.id == null ? 'Novo arquivo' : 'Editando #' + arquivo.id}">Novo arquivo</span>
+        </div>
+
+        <div class="page-header">
+            <div class="page-title">
+                <span th:text="${arquivo.id == null ? '📄' : '✏️'}">📄</span>
+                <span th:text="${arquivo.id == null ? 'Novo Arquivo Fonte' : 'Editar Arquivo Fonte'}">Novo Arquivo
+                    Fonte</span>
+            </div>
+            <p class="page-subtitle">
+                Insira o código-fonte que será analisado. Após salvar, você poderá mapear escopos e símbolos no painel
+                de inspeção.
+            </p>
+        </div>
+
+        <div class="card" style="max-width:900px;">
+            <div class="card-header">
+                <span class="card-header-title">📝 Metadados do Arquivo</span>
+            </div>
+            <div class="card-body">
+                <form th:action="@{/arquivos}" method="post" th:object="${arquivo}">
+                    <input type="hidden" th:field="*{id}" />
+                    <input type="hidden" th:field="*{dataAnalise}" />
+
+                    <!-- Nome do arquivo -->
+                    <div class="form-group">
+                        <label class="form-label" for="nome-arquivo">
+                            Nome do arquivo <span class="required">*</span>
+                        </label>
+                        <p style="font-size:11px;color:var(--text-dim);margin-bottom:8px;">
+                            Ex: main.c, script.py, App.java, index.js
+                        </p>
+                        <div class="lang-chips" id="chips">
+                            <span class="lang-chip" onclick="setNome('main.c')">main.c</span>
+                            <span class="lang-chip" onclick="setNome('App.java')">App.java</span>
+                            <span class="lang-chip" onclick="setNome('script.py')">script.py</span>
+                            <span class="lang-chip" onclick="setNome('index.js')">index.js</span>
+                            <span class="lang-chip" onclick="setNome('main.go')">main.go</span>
+                            <span class="lang-chip" onclick="setNome('program.cpp')">program.cpp</span>
+                        </div>
+                        <input type="text" id="nome-arquivo" class="form-control" th:field="*{nomeArquivo}"
+                            placeholder="ex: main.c" required style="max-width:400px;" />
+                    </div>
+
+                    <!-- Editor de código -->
+                    <div class="form-group">
+                        <label class="form-label" for="codigo-editor">
+                            Código Fonte <span class="required">*</span>
+                        </label>
+                        <p style="font-size:11px;color:var(--text-dim);margin-bottom:8px;">
+                            Cole ou escreva o código que será analisado semanticamente.
+                        </p>
+                        <div class="editor-wrap">
+                            <div class="line-numbers" id="line-nums" aria-hidden="true">1</div>
+                            <textarea id="codigo-editor" th:field="*{codigoConteudo}"
+                                placeholder="// Cole seu código aqui..." required spellcheck="false"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">💾 Salvar arquivo</button>
+                        <a href="/arquivos" class="btn">Cancelar</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        function setNome(v) {
+            document.getElementById('nome-arquivo').value = v;
+        }
+
+        const editor = document.getElementById('codigo-editor');
+        const lineNums = document.getElementById('line-nums');
+
+        function updateLines() {
+            const lines = editor.value.split('\n').length;
+            lineNums.textContent = Array.from({ length: lines }, (_, i) => i + 1).join('\n');
+            lineNums.scrollTop = editor.scrollTop;
+        }
+
+        editor.addEventListener('input', updateLines);
+        editor.addEventListener('scroll', () => { lineNums.scrollTop = editor.scrollTop; });
+        editor.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const s = editor.selectionStart, end = editor.selectionEnd;
+                editor.value = editor.value.substring(0, s) + '  ' + editor.value.substring(end);
+                editor.selectionStart = editor.selectionEnd = s + 2;
+                updateLines();
+            }
+        });
+
+        updateLines();
+    </script>
+</body>
+
+</html>
