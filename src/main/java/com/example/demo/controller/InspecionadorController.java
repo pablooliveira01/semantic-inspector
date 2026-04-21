@@ -1,5 +1,7 @@
 package com.example.demo.controller;
 
+import java.util.Set;
+
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,48 +14,61 @@ import org.springframework.web.bind.annotation.RequestParam;
 import com.example.demo.model.ArquivoFonte;
 import com.example.demo.model.Escopo;
 import com.example.demo.model.Simbolo;
+import com.example.demo.model.UsoSimbolo;
 import com.example.demo.repository.ArquivoFonteRepository;
 import com.example.demo.repository.EscopoRepository;
 import com.example.demo.repository.SimboloRepository;
+import com.example.demo.repository.UsoSimboloRepository;
+import com.example.demo.service.ShadowingService;
 
 @Controller
 @RequestMapping("/inspecao")
 public class InspecionadorController {
 
     private final ArquivoFonteRepository arquivoRepository;
-    private final EscopoRepository escopoRepository;
-    private final SimboloRepository simboloRepository;
+    private final EscopoRepository       escopoRepository;
+    private final SimboloRepository      simboloRepository;
+    private final UsoSimboloRepository   usoRepository;
+    private final ShadowingService       shadowingService;
 
-    public InspecionadorController(ArquivoFonteRepository arquivoRepository, 
-                                   EscopoRepository escopoRepository, 
-                                   SimboloRepository simboloRepository) {
+    public InspecionadorController(ArquivoFonteRepository arquivoRepository,
+                                   EscopoRepository escopoRepository,
+                                   SimboloRepository simboloRepository,
+                                   UsoSimboloRepository usoRepository,
+                                   ShadowingService shadowingService) {
         this.arquivoRepository = arquivoRepository;
-        this.escopoRepository = escopoRepository;
+        this.escopoRepository  = escopoRepository;
         this.simboloRepository = simboloRepository;
+        this.usoRepository     = usoRepository;
+        this.shadowingService  = shadowingService;
     }
 
-    // ==========================================
-    // PAINEL DE INSPEÇÃO DO ARQUIVO (A Tabela de Símbolos visual)
-    // ==========================================
+    // =========================================================
+    // PAINEL PRINCIPAL
+    // =========================================================
     @GetMapping("/{arquivoId}")
     public String painelInspecao(@PathVariable Long arquivoId, Model model) {
         ArquivoFonte arquivo = arquivoRepository.findById(arquivoId)
             .orElseThrow(() -> new IllegalArgumentException("Arquivo inválido: " + arquivoId));
-        
-        model.addAttribute("arquivo", arquivo);
-        
-        // Passamos objetos vazios para os modais/formulários de criação na mesma tela
+
+        // Detecta shadowing no backend — substitui o hardcode do HTML
+        Set<Long> shadowIds = shadowingService.detectarShadows(arquivo);
+
+        model.addAttribute("arquivo",    arquivo);
+        model.addAttribute("shadowIds",  shadowIds);
         model.addAttribute("novoEscopo", new Escopo());
         model.addAttribute("novoSimbolo", new Simbolo());
-        
-        return "painel-inspecao"; // Esta será a nossa tela mais legal na Etapa 3
+        model.addAttribute("novoUso",    new UsoSimbolo());
+
+        return "painel-inspecao";
     }
 
-    // ==========================================
-    // CRUD DE ESCOPO (Direto pelo painel)
-    // ==========================================
+    // =========================================================
+    // CRUD DE ESCOPO
+    // =========================================================
     @PostMapping("/escopo/salvar/{arquivoId}")
-    public String salvarEscopo(@PathVariable Long arquivoId, @ModelAttribute Escopo escopo) {
+    public String salvarEscopo(@PathVariable Long arquivoId,
+                               @ModelAttribute Escopo escopo) {
         ArquivoFonte arquivo = arquivoRepository.findById(arquivoId).orElseThrow();
         escopo.setArquivoFonte(arquivo);
         escopoRepository.save(escopo);
@@ -68,12 +83,12 @@ public class InspecionadorController {
         return "redirect:/inspecao/" + arquivoId;
     }
 
-    // ==========================================
-    // CRUD DE SÍMBOLO (Variáveis)
-    // ==========================================
+    // =========================================================
+    // CRUD DE SÍMBOLO
+    // =========================================================
     @PostMapping("/simbolo/salvar/{arquivoId}")
-    public String salvarSimbolo(@PathVariable Long arquivoId, 
-                                @ModelAttribute Simbolo simbolo, 
+    public String salvarSimbolo(@PathVariable Long arquivoId,
+                                @ModelAttribute Simbolo simbolo,
                                 @RequestParam Long escopoId) {
         Escopo escopo = escopoRepository.findById(escopoId).orElseThrow();
         simbolo.setEscopo(escopo);
@@ -86,6 +101,41 @@ public class InspecionadorController {
         Simbolo simbolo = simboloRepository.findById(simboloId).orElseThrow();
         Long arquivoId = simbolo.getEscopo().getArquivoFonte().getId();
         simboloRepository.delete(simbolo);
+        return "redirect:/inspecao/" + arquivoId;
+    }
+
+    // =========================================================
+    // CRUD DE USO DE SÍMBOLO  ← novo
+    // =========================================================
+
+    /**
+     * Salva um novo UsoSimbolo vinculado a um símbolo existente.
+     * O arquivoId é necessário apenas para o redirect de volta ao painel.
+     */
+    @PostMapping("/uso/salvar/{arquivoId}")
+    public String salvarUso(@PathVariable Long arquivoId,
+                            @RequestParam Long simboloId,
+                            @RequestParam Integer linhaCodigo,
+                            @RequestParam String tipoOperacao) {
+        Simbolo simbolo = simboloRepository.findById(simboloId).orElseThrow();
+
+        UsoSimbolo uso = new UsoSimbolo();
+        uso.setSimbolo(simbolo);
+        uso.setLinhaCodigo(linhaCodigo);
+        uso.setTipoOperacao(tipoOperacao);
+        usoRepository.save(uso);
+
+        return "redirect:/inspecao/" + arquivoId;
+    }
+
+    /**
+     * Remove um UsoSimbolo e redireciona de volta ao painel do arquivo.
+     */
+    @GetMapping("/uso/delete/{usoId}")
+    public String deletarUso(@PathVariable Long usoId) {
+        UsoSimbolo uso = usoRepository.findById(usoId).orElseThrow();
+        Long arquivoId = uso.getSimbolo().getEscopo().getArquivoFonte().getId();
+        usoRepository.delete(uso);
         return "redirect:/inspecao/" + arquivoId;
     }
 }

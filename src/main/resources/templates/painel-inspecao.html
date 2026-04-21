@@ -7,23 +7,86 @@
     <title>Semantic Inspector — Painel</title>
     <link rel="stylesheet" href="/css/styles.css">
     <style>
-        .inline-form select.form-control {
-            min-width: 180px;
-        }
+        .inline-form select.form-control { min-width: 180px; }
+        .add-section { border-top: 1px solid var(--border); }
 
-        .add-section {
+        /* ── Shadowing: marcação real vinda do backend ── */
+        .shadow-warn td { border-left: 3px solid var(--amber); }
+        .shadow-warn td:first-child { padding-left: 13px; }
+
+        /* ── UsoSimbolo: seção de usos por símbolo ── */
+        .uso-row td { background: #0d1117; }
+        .uso-delete-btn { opacity: 0; transition: opacity .15s; }
+        tr:hover .uso-delete-btn { opacity: 1; }
+
+        /* ── Formulário de uso inline (dentro da linha expandida) ── */
+        .uso-add-form {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            padding: 8px 12px 10px;
+            background: #0d1117;
+            border-top: 1px dashed var(--border);
+        }
+        .uso-add-form .form-group { margin-bottom: 0; }
+        .uso-add-form label { font-size: 10px; }
+        .uso-add-form input,
+        .uso-add-form select { font-size: 12px; padding: 4px 8px; height: 28px; }
+
+        /* ── Toggle do formulário de usos ── */
+        .btn-uso-toggle {
+            font-size: 11px;
+            padding: 3px 8px;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: border-color .15s, color .15s;
+        }
+        .btn-uso-toggle:hover { border-color: var(--cyan); color: var(--cyan); }
+
+        /* ── Painel de usos expandido ── */
+        .uso-panel {
+            display: none;
+            background: #0a0e13;
+            padding: 8px 16px 12px;
             border-top: 1px solid var(--border);
         }
-
-        .shadow-warn td {
-            border-left: 3px solid var(--amber);
+        .uso-panel.open { display: block; }
+        .uso-panel-title {
+            font-family: var(--font-code);
+            font-size: 10px;
+            color: var(--text-dim);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: .05em;
         }
-
-        .shadow-warn td:first-child {
-            padding-left: 13px;
+        .uso-list { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+        .uso-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-family: var(--font-code);
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 4px;
         }
+        .uso-chip-read  { background: #06b6d418; color: var(--cyan);  border: 1px solid #22d3ee33; }
+        .uso-chip-write { background: var(--green-bg); color: var(--green); border: 1px solid #3ecf8e33; }
+        .uso-chip-del {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            cursor: pointer;
+            padding: 0 2px;
+            font-size: 12px;
+            line-height: 1;
+        }
+        .uso-chip-del:hover { color: var(--red); }
 
-        /* Click-to-fill hint tooltip */
+        /* Click-to-fill hint */
         .code-viewer-header .click-hint {
             margin-left: auto;
             font-family: var(--font-code);
@@ -36,27 +99,13 @@
             display: none;
         }
 
-        /* Leitura/Escrita event flash on status bar */
-        .status-bar.use-event {
-            background: #06b6d415;
-            color: var(--cyan);
-            border-color: #22d3ee33;
-        }
+        .status-bar.use-event { background: #06b6d415; color: var(--cyan); border-color: #22d3ee33; }
 
-        /* Highlight pulse on code line when symbol row hovered */
         @keyframes linePulse {
-            0% {
-                background: rgba(77, 142, 248, 0.18);
-            }
-
-            100% {
-                background: rgba(77, 142, 248, 0.06);
-            }
+            0%   { background: rgba(77, 142, 248, 0.18); }
+            100% { background: rgba(77, 142, 248, 0.06); }
         }
-
-        .code-line.hl-hover-sym {
-            animation: linePulse .4s ease forwards;
-        }
+        .code-line.hl-hover-sym { animation: linePulse .4s ease forwards; }
     </style>
 </head>
 
@@ -118,8 +167,7 @@
                             <span style="background:#3ecf8e"></span>
                         </div>
                         <span class="code-filename" th:text="${arquivo.nomeArquivo}">main.c</span>
-                        <span class="click-hint" id="click-hint">clique em uma palavra para preencher o
-                            formulário</span>
+                        <span class="click-hint" id="click-hint">clique em uma palavra para preencher o formulário</span>
                     </div>
                     <div class="code-body" id="code-body">
                         <!-- Rendered by JS -->
@@ -148,7 +196,7 @@
                                     th:classappend="${esc.nivelProfundidade == 1 ? 'scope-indent-1' : (esc.nivelProfundidade >= 2 ? 'scope-indent-2' : '')}"
                                     th:attr="data-level=${esc.nivelProfundidade}">
                                     <div class="scope-dot" th:style="${esc.nivelProfundidade == 0 ? 'background:#a78bfa' :
-                  esc.nivelProfundidade == 1 ? 'background:#3ecf8e' : 'background:#f0b429'}"></div>
+                                        esc.nivelProfundidade == 1 ? 'background:#3ecf8e' : 'background:#f0b429'}"></div>
                                     <span class="scope-name" th:text="${esc.nomeEscopo}">Global</span>
                                     <span class="scope-level" th:text="'nível ' + ${esc.nivelProfundidade}">0</span>
                                     <a th:href="@{'/inspecao/escopo/delete/' + ${esc.id}}" class="btn btn-danger btn-sm"
@@ -182,7 +230,7 @@
                     </div>
                 </div>
 
-                <!-- 2. Symbol table with reverse-hover + click-to-fill -->
+                <!-- 2. Symbol table -->
                 <div class="card">
                     <div class="card-header">
                         <span class="card-header-title">📋 Tabela de Símbolos</span>
@@ -204,54 +252,156 @@
                                     <th>Tipo</th>
                                     <th>Linha</th>
                                     <th>Usos</th>
+                                    <!--
+                                        MUDANÇA 2 — Shadowing real vindo do backend:
+                                        A coluna "Info" agora usa o Set<Long> shadowIds
+                                        injetado pelo ShadowingService no controller,
+                                        em vez do hardcode (simb.lexema == 'x').
+                                    -->
                                     <th>Info</th>
-                                    <th style="width:60px"></th>
+                                    <th style="width:80px"></th>
                                 </tr>
                             </thead>
                             <tbody id="sym-tbody">
                                 <th:block th:each="esc : ${arquivo.escopos}">
-                                    <tr class="sym-row visible" th:each="simb : ${esc.simbolos}"
-                                        th:attr="data-line=${simb.linhaDeclaracao}, data-lexema=${simb.lexema}, data-tipo=${simb.tipoDado}, data-escopo-id=${esc.id}"
-                                        th:classappend="${simb.lexema == 'x' and esc.nivelProfundidade > 0 ? ' shadow-warn' : ''}">
-                                        <td>
-                                            <span class="badge" th:classappend="${esc.nivelProfundidade == 0 ? 'badge-purple' :
-                        esc.nivelProfundidade == 1 ? 'badge-green' : 'badge-amber'}"
-                                                th:text="${esc.nomeEscopo}">Global</span>
-                                        </td>
-                                        <td><span class="token-var" th:text="${simb.lexema}">x</span></td>
-                                        <td><span class="token-type" th:text="${simb.tipoDado}">int</span></td>
-                                        <td><span class="token-num" th:text="${simb.linhaDeclaracao}">1</span></td>
-                                        <td>
-                                            <!-- Usos do símbolo (leitura / escrita) -->
-                                            <div style="display:flex;gap:3px;flex-wrap:wrap;">
-                                                <th:block th:each="uso : ${simb.usos}">
-                                                    <span th:if="${uso.tipoOperacao == 'Leitura'}"
-                                                        class="use-indicator use-read"
-                                                        th:title="'Linha ' + ${uso.linhaCodigo}">
-                                                        ↓ L<span th:text="${uso.linhaCodigo}"></span>
-                                                    </span>
-                                                    <span th:if="${uso.tipoOperacao == 'Escrita'}"
-                                                        class="use-indicator use-write"
-                                                        th:title="'Linha ' + ${uso.linhaCodigo}">
-                                                        ↑ E<span th:text="${uso.linhaCodigo}"></span>
-                                                    </span>
-                                                </th:block>
-                                                <span th:if="${#lists.isEmpty(simb.usos)}"
-                                                    style="color:var(--text-dim);font-size:10px;font-family:var(--font-code)">—</span>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span class="badge badge-amber"
-                                                th:if="${esc.nivelProfundidade > 0}">shadowing?</span>
-                                            <span class="badge badge-purple"
-                                                th:if="${esc.nivelProfundidade == 0}">global</span>
-                                        </td>
-                                        <td>
-                                            <a th:href="@{'/inspecao/simbolo/delete/' + ${simb.id}}"
-                                                class="btn btn-danger btn-sm"
-                                                onclick="return confirm('Excluir este símbolo?')">✕</a>
-                                        </td>
-                                    </tr>
+                                    <!--
+                                        MUDANÇA 2 — shadow-warn agora usa shadowIds.contains(simb.id)
+                                        em vez de simb.lexema == 'x' and esc.nivelProfundidade > 0
+                                    -->
+                                    <th:block th:each="simb : ${esc.simbolos}">
+                                        <tr class="sym-row visible"
+                                            th:attr="data-line=${simb.linhaDeclaracao},
+                                                     data-lexema=${simb.lexema},
+                                                     data-tipo=${simb.tipoDado},
+                                                     data-escopo-id=${esc.id},
+                                                     data-simb-id=${simb.id}"
+                                            th:classappend="${shadowIds.contains(simb.id) ? ' shadow-warn' : ''}">
+                                            <td>
+                                                <span class="badge"
+                                                    th:classappend="${esc.nivelProfundidade == 0 ? 'badge-purple' :
+                                                                     esc.nivelProfundidade == 1 ? 'badge-green' : 'badge-amber'}"
+                                                    th:text="${esc.nomeEscopo}">Global</span>
+                                            </td>
+                                            <td><span class="token-var" th:text="${simb.lexema}">x</span></td>
+                                            <td><span class="token-type" th:text="${simb.tipoDado}">int</span></td>
+                                            <td><span class="token-num" th:text="${simb.linhaDeclaracao}">1</span></td>
+                                            <td>
+                                                <!-- Usos existentes (leitura/escrita) -->
+                                                <div style="display:flex;gap:3px;flex-wrap:wrap;">
+                                                    <th:block th:each="uso : ${simb.usos}">
+                                                        <span th:if="${uso.tipoOperacao == 'Leitura'}"
+                                                            class="use-indicator use-read"
+                                                            th:title="'Linha ' + ${uso.linhaCodigo}">
+                                                            ↓ L<span th:text="${uso.linhaCodigo}"></span>
+                                                        </span>
+                                                        <span th:if="${uso.tipoOperacao == 'Escrita'}"
+                                                            class="use-indicator use-write"
+                                                            th:title="'Linha ' + ${uso.linhaCodigo}">
+                                                            ↑ E<span th:text="${uso.linhaCodigo}"></span>
+                                                        </span>
+                                                    </th:block>
+                                                    <span th:if="${#lists.isEmpty(simb.usos)}"
+                                                        style="color:var(--text-dim);font-size:10px;font-family:var(--font-code)">—</span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <!--
+                                                    MUDANÇA 2 — badge de shadowing real:
+                                                    Antes: th:if="${esc.nivelProfundidade > 0}" (sempre mostrava para qualquer nível > 0)
+                                                    Agora: th:if="${shadowIds.contains(simb.id)}" (só mostra quando há shadow real)
+                                                -->
+                                                <span class="badge badge-amber"
+                                                    th:if="${shadowIds.contains(simb.id)}">⚠ shadow</span>
+                                                <span class="badge badge-purple"
+                                                    th:if="${esc.nivelProfundidade == 0 and !shadowIds.contains(simb.id)}">global</span>
+                                                <span class="badge badge-green"
+                                                    th:if="${esc.nivelProfundidade > 0 and !shadowIds.contains(simb.id)}">local</span>
+                                            </td>
+                                            <td style="display:flex;gap:4px;align-items:center;">
+                                                <!--
+                                                    MUDANÇA 1 — botão para abrir o painel de usos do símbolo
+                                                    Toggle via JS, sem reload de página
+                                                -->
+                                                <button class="btn-uso-toggle"
+                                                    th:attr="onclick='toggleUsoPanel(' + ${simb.id} + ')'"
+                                                    th:title="'Gerenciar usos de ' + ${simb.lexema}">
+                                                    ＋ uso
+                                                </button>
+                                                <a th:href="@{'/inspecao/simbolo/delete/' + ${simb.id}}"
+                                                    class="btn btn-danger btn-sm"
+                                                    onclick="return confirm('Excluir este símbolo e todos os seus usos?')">✕</a>
+                                            </td>
+                                        </tr>
+
+                                        <!--
+                                            MUDANÇA 1 — Painel de UsoSimbolo por símbolo.
+                                            Cada símbolo tem seu próprio painel expansível abaixo da linha.
+                                            Contém: lista de usos existentes com botão de delete
+                                                    + formulário inline para adicionar novo uso.
+                                        -->
+                                        <tr class="uso-row" th:attr="id='uso-panel-row-' + ${simb.id}">
+                                            <td colspan="7" style="padding:0;">
+                                                <div class="uso-panel" th:attr="id='uso-panel-' + ${simb.id}">
+                                                    <div class="uso-panel-title">
+                                                        usos de <span class="token-var" th:text="${simb.lexema}">x</span>
+                                                        · <span class="token-type" th:text="${simb.tipoDado}">int</span>
+                                                        · escopo <span th:text="${esc.nomeEscopo}">Global</span>
+                                                    </div>
+
+                                                    <!-- Lista de usos existentes -->
+                                                    <div class="uso-list" th:attr="id='uso-list-' + ${simb.id}">
+                                                        <th:block th:each="uso : ${simb.usos}">
+                                                            <span th:classappend="${uso.tipoOperacao == 'Leitura' ? ' uso-chip-read' : ' uso-chip-write'}"
+                                                                class="uso-chip">
+                                                                <span th:text="${uso.tipoOperacao == 'Leitura' ? '↓' : '↑'}"></span>
+                                                                <span th:text="${uso.tipoOperacao}"></span>
+                                                                · linha
+                                                                <strong th:text="${uso.linhaCodigo}"></strong>
+                                                                <a th:href="@{'/inspecao/uso/delete/' + ${uso.id}}"
+                                                                    class="uso-chip-del"
+                                                                    onclick="return confirm('Remover este uso?')">×</a>
+                                                            </span>
+                                                        </th:block>
+                                                        <span th:if="${#lists.isEmpty(simb.usos)}"
+                                                            style="color:var(--text-dim);font-size:11px;font-family:var(--font-code);">
+                                                            nenhum uso registrado ainda
+                                                        </span>
+                                                    </div>
+
+                                                    <!-- Formulário para adicionar novo uso -->
+                                                    <form th:action="@{'/inspecao/uso/salvar/' + ${arquivo.id}}"
+                                                        method="post" class="uso-add-form">
+                                                        <!-- simboloId como hidden: vincula o uso ao símbolo correto -->
+                                                        <input type="hidden" name="simboloId" th:value="${simb.id}" />
+
+                                                        <div class="form-group">
+                                                            <label class="form-label">Linha</label>
+                                                            <input type="number" name="linhaCodigo"
+                                                                class="form-control"
+                                                                placeholder="ex: 5" min="1"
+                                                                style="max-width:80px;" required />
+                                                        </div>
+
+                                                        <div class="form-group">
+                                                            <label class="form-label">Operação</label>
+                                                            <select name="tipoOperacao" class="form-control"
+                                                                style="max-width:130px;" required>
+                                                                <option value="Leitura">↓ Leitura</option>
+                                                                <option value="Escrita">↑ Escrita</option>
+                                                            </select>
+                                                        </div>
+
+                                                        <div class="form-group" style="align-self:flex-end;">
+                                                            <button type="submit" class="btn btn-success"
+                                                                style="height:28px;font-size:12px;padding:0 12px;">
+                                                                + Registrar uso
+                                                            </button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </th:block>
                                 </th:block>
                             </tbody>
                         </table>
@@ -262,7 +412,7 @@
                         <p>Cadastre ao menos um escopo para adicionar símbolos.</p>
                     </div>
 
-                    <!-- Form: add symbol — fields are filled by click-to-fill -->
+                    <!-- Formulário para adicionar símbolo -->
                     <div class="add-section" th:if="${not #lists.isEmpty(arquivo.escopos)}">
                         <form th:action="@{'/inspecao/simbolo/salvar/' + ${arquivo.id}}" method="post"
                             class="inline-form" style="flex-wrap:wrap;" id="sym-form">
@@ -281,8 +431,8 @@
                             </div>
                             <div class="form-group" style="max-width:100px;">
                                 <label class="form-label">Tipo</label>
-                                <input type="text" name="tipoDado" id="form-tipo" class="form-control" placeholder="int"
-                                    required />
+                                <input type="text" name="tipoDado" id="form-tipo" class="form-control"
+                                    placeholder="int" required />
                             </div>
                             <div class="form-group" style="max-width:80px;">
                                 <label class="form-label">Linha</label>
@@ -296,7 +446,7 @@
                     </div>
                 </div>
 
-                <!-- 3. Activation stack — visual blocks -->
+                <!-- 3. Activation stack -->
                 <div class="card">
                     <div class="card-header">
                         <span class="card-header-title">📦 Pilha de Ativação</span>
@@ -307,8 +457,7 @@
                         <div id="stack-pointer-row" class="stack-pointer" style="display:none;">
                             <span class="stack-pointer-arrow">▶</span>
                             <span id="stack-pointer-label"
-                                style="font-family:var(--font-code);font-size:10px;color:var(--amber)">topo da
-                                pilha</span>
+                                style="font-family:var(--font-code);font-size:10px;color:var(--amber)">topo da pilha</span>
                         </div>
                         <div class="mem-stack" id="mem-stack">
                             <div style="font-size:12px;color:var(--text-dim);text-align:center;padding:20px 0;font-family:var(--font-code);"
@@ -324,30 +473,35 @@
 
     </main>
 
-    <!-- =====================================================================
-     ANIMATION ENGINE
-     Improvements:
-     1. Reverse hover: hovering symbol row ↔ highlights code line
-     2. Click-to-fill: clicking word in code prefills the symbol form
-     3. usos_simbolo: read/write events shown in status bar during animation
-     4. Visual stack frames: real stacked blocks instead of text list
-     ===================================================================== -->
     <script>
-        (function () {
+        /* =========================================================
+           MUDANÇA 1 — Toggle do painel de UsoSimbolo
+           Abre/fecha o painel de usos de um símbolo específico.
+           Mantém o estado de todos os outros painéis intacto.
+           ========================================================= */
+        function toggleUsoPanel(simboloId) {
+            const panel = document.getElementById('uso-panel-' + simboloId);
+            if (!panel) return;
+            panel.classList.toggle('open');
+        }
 
-            /* ── Collect DOM data from Thymeleaf ── */
+        /* =========================================================
+           ANIMATION ENGINE (inalterado, exceto leitura do isShadow)
+           O isShadow agora vem do atributo data-shadow no <tr>,
+           que é setado pelo Thymeleaf com base no shadowIds do backend.
+           ========================================================= */
+        (function () {
             const scopeEls = document.querySelectorAll('#scope-tree-live .scope-item-anim');
-            const symRows = document.querySelectorAll('#sym-tbody .sym-row');
+            const symRows  = document.querySelectorAll('#sym-tbody .sym-row');
             const codeBody = document.getElementById('code-body');
 
             /* ── Render code lines ── */
             const rawLines = RAW_CODE.split('\n');
 
-            // Simple tokenizer for keyword/number highlight
             function tokenizeLine(line) {
                 const keywords = /\b(int|float|double|char|bool|string|void|return|if|else|while|for|do|class|public|private|static|final|const|let|var|def|print|println|fn|func|import|from|new|this|super|null|true|false|None|True|False)\b/g;
-                const numbers = /\b(\d+\.?\d*)\b/g;
-                const strings = /(["'`])(?:\\.|(?!\1)[^\\])*\1/g;
+                const numbers  = /\b(\d+\.?\d*)\b/g;
+                const strings  = /(['"`])(?:\\.|(?!\1)[^\\])*\1/g;
                 const comments = /(\/\/.*$|\/\*[\s\S]*?\*\/|#.*$)/gm;
 
                 let esc = line
@@ -357,53 +511,42 @@
 
                 esc = esc
                     .replace(comments, m => `<span style="color:var(--text-dim)">${m}</span>`)
-                    .replace(strings, m => `<span style="color:#a5d6ff">${m}</span>`)
+                    .replace(strings,  m => `<span style="color:#a5d6ff">${m}</span>`)
                     .replace(keywords, m => `<span style="color:#ff7b72">${m}</span>`)
-                    .replace(numbers, m => `<span style="color:#79c0ff">${m}</span>`);
+                    .replace(numbers,  m => `<span style="color:#79c0ff">${m}</span>`);
 
                 return esc;
             }
 
             rawLines.forEach((line, i) => {
                 const div = document.createElement('div');
-                div.className = 'code-line';
-                div.id = 'cl-' + (i + 1);
+                div.className  = 'code-line';
+                div.id         = 'cl-' + (i + 1);
                 div.dataset.lineNum = i + 1;
-                const tok = tokenizeLine(line);
-                div.innerHTML = `<span class="line-num">${i + 1}</span><span class="code-text">${tok}</span>`;
+                div.innerHTML  = `<span class="line-num">${i + 1}</span><span class="code-text">${tokenizeLine(line)}</span>`;
                 codeBody.appendChild(div);
             });
 
-            /* ══════════════════════════════════════════════════
-               IMPROVEMENT 2: Click-to-fill
-               Clicking any word in the code viewer fills the
-               Lexema and Linha fields in the symbol form.
-               ══════════════════════════════════════════════════ */
+            /* ── Click-to-fill ── */
             const formLexema = document.getElementById('form-lexema');
-            const formLinha = document.getElementById('form-linha');
-            const clickHint = document.getElementById('click-hint');
+            const formLinha  = document.getElementById('form-linha');
+            const clickHint  = document.getElementById('click-hint');
 
             if (formLexema) {
                 clickHint.style.display = 'block';
-
                 codeBody.addEventListener('click', (e) => {
                     const codeLine = e.target.closest('.code-line');
                     if (!codeLine) return;
-
-                    // Get clicked word from the text
                     const lineNum = parseInt(codeLine.dataset.lineNum);
                     const rawLine = rawLines[lineNum - 1] || '';
 
-                    // Extract word near click position using selection API
                     const sel = window.getSelection();
                     let word = '';
                     if (sel && sel.toString().trim()) {
                         word = sel.toString().trim();
                     } else {
-                        // Try to find word at mouse position in the raw line
                         const range = document.caretRangeFromPoint
-                            ? document.caretRangeFromPoint(e.clientX, e.clientY)
-                            : null;
+                            ? document.caretRangeFromPoint(e.clientX, e.clientY) : null;
                         if (range) {
                             const node = range.startContainer;
                             if (node.nodeType === Node.TEXT_NODE) {
@@ -419,19 +562,15 @@
 
                     if (!word || !/^[a-zA-Z_]\w*$/.test(word)) return;
 
-                    // Determine probable type by looking at the line
-                    let tipo = '';
                     const typeMatch = rawLine.match(/\b(int|float|double|char|bool|string|void|long|short)\b/);
-                    if (typeMatch) tipo = typeMatch[1];
+                    const tipo = typeMatch ? typeMatch[1] : '';
 
-                    // Fill form fields
                     formLexema.value = word;
-                    formLinha.value = lineNum;
+                    formLinha.value  = lineNum;
                     if (tipo && document.getElementById('form-tipo')) {
                         document.getElementById('form-tipo').value = tipo;
                     }
 
-                    // Animate filled fields
                     [formLexema, formLinha, document.getElementById('form-tipo')].forEach(f => {
                         if (!f || !f.value) return;
                         f.classList.remove('field-filled');
@@ -440,24 +579,16 @@
                         setTimeout(() => f.classList.remove('field-filled'), 600);
                     });
 
-                    // Pulse the code line
                     codeLine.classList.add('hl-hover-sym');
                     setTimeout(() => codeLine.classList.remove('hl-hover-sym'), 600);
-
-                    // Scroll form into view
                     formLexema.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                     formLexema.focus();
                 });
             }
 
-            /* ══════════════════════════════════════════════════
-               IMPROVEMENT 1: Reverse hover
-               Hovering a symbol row highlights the corresponding
-               code line and flashes the scope node.
-               ══════════════════════════════════════════════════ */
+            /* ── Reverse hover ── */
             symRows.forEach((row) => {
                 const declarationLine = parseInt(row.getAttribute('data-line')) || 0;
-
                 row.addEventListener('mouseenter', () => {
                     row.classList.add('reverse-hover');
                     if (declarationLine > 0) {
@@ -468,7 +599,6 @@
                         }
                     }
                 });
-
                 row.addEventListener('mouseleave', () => {
                     row.classList.remove('reverse-hover');
                     if (declarationLine > 0) {
@@ -483,7 +613,6 @@
             symRows.forEach(row => {
                 const tds = row.querySelectorAll('td');
                 if (tds.length >= 4) {
-                    // Collect usos from the Usos column (td index 4)
                     const usoEls = tds[4] ? tds[4].querySelectorAll('.use-indicator') : [];
                     const usos = [];
                     usoEls.forEach(u => {
@@ -491,12 +620,16 @@
                         const lineMatch = u.textContent.match(/\d+/);
                         usos.push({ tipo, linha: lineMatch ? parseInt(lineMatch[0]) : 0 });
                     });
-
                     symData.push({
                         escopo: tds[0].textContent.trim(),
                         lexema: tds[1].textContent.trim(),
-                        tipo: tds[2].textContent.trim(),
-                        linha: parseInt(tds[3].textContent.trim()) || 1,
+                        tipo:   tds[2].textContent.trim(),
+                        linha:  parseInt(tds[3].textContent.trim()) || 1,
+                        /*
+                         * MUDANÇA 2 — isShadow agora lido da classe CSS shadow-warn,
+                         * que é aplicada pelo Thymeleaf com base no shadowIds do backend.
+                         * Não há mais nenhuma lógica de detecção no frontend.
+                         */
                         isShadow: row.classList.contains('shadow-warn'),
                         usos
                     });
@@ -506,17 +639,17 @@
             const scopeData = [];
             scopeEls.forEach(el => {
                 scopeData.push({
-                    nome: el.querySelector('.scope-name')?.textContent.trim() || '',
+                    nome:  el.querySelector('.scope-name')?.textContent.trim() || '',
                     nivel: parseInt(el.getAttribute('data-level')) || 0
                 });
             });
 
-            /* ── Build steps ── */
+            /* ── Build animation steps ── */
             const symSorted = [...symData].sort((a, b) => a.linha - b.linha);
             const steps = [];
             const visibleScopes = new Set();
-            const visibleSyms = new Set();
-            const memStack = [];
+            const visibleSyms   = new Set();
+            const memStack      = [];
 
             function mkStatus(text, cls) { return { text, cls }; }
 
@@ -552,21 +685,16 @@
                     useEvents: []
                 });
 
-                /* ══════════════════════════════════════════════════
-                   IMPROVEMENT 3: Show usos_simbolo read/write events
-                   Each uso gets its own step showing leitura/escrita
-                   ══════════════════════════════════════════════════ */
                 sym.usos.forEach(uso => {
-                    const icon = uso.tipo === 'Leitura' ? '↓ 📖' : '↑ ✏️';
-                    const cls = uso.tipo === 'Leitura' ? 'read' : 'info';
+                    const icon  = uso.tipo === 'Leitura' ? '↓ 📖' : '↑ ✏️';
+                    const cls   = uso.tipo === 'Leitura' ? 'read' : 'info';
                     const color = uso.tipo === 'Leitura' ? 'var(--cyan)' : 'var(--green)';
                     steps.push({
                         code: [uso.linha], scopeIdx: Array.from(visibleScopes),
                         symIdx: Array.from(visibleSyms), mem: [...memStack],
                         scopeFlash: -1, symFlash: si,
                         isShadow: false,
-                        useEventFlash: si,
-                        useEventType: uso.tipo,
+                        useEventFlash: si, useEventType: uso.tipo,
                         status: mkStatus(
                             `${icon} Linha ${uso.linha}: ${uso.tipo} da variável "${sym.lexema}" (${sym.tipo}) em "${sym.escopo}"`,
                             cls
@@ -589,49 +717,40 @@
             /* ── Hide all initially ── */
             function hideAll() {
                 scopeEls.forEach(el => el.classList.remove('visible', 'flash'));
-                symRows.forEach(el => el.classList.remove('visible', 'flash-green', 'flash-amber', 'flash-blue'));
+                symRows.forEach(el  => el.classList.remove('visible', 'flash-green', 'flash-amber', 'flash-blue'));
                 document.querySelectorAll('.code-line').forEach(el =>
                     el.classList.remove('hl-active', 'hl-done', 'hl-hover-sym'));
                 buildMemStack([]);
             }
             hideAll();
 
-            /* ══════════════════════════════════════════════════
-               IMPROVEMENT 4: Visual stack frames
-               Build stacked block elements instead of text list
-               ══════════════════════════════════════════════════ */
+            /* ── Visual stack frames ── */
             const blockColors = ['#a78bfa', '#3ecf8e', '#f0b429', '#4d8ef8', '#22d3ee'];
 
             function buildMemStack(frameNames) {
-                const memEl = document.getElementById('mem-stack');
+                const memEl   = document.getElementById('mem-stack');
                 const emptyEl = document.getElementById('mem-empty');
 
                 if (frameNames.length === 0) {
                     memEl.innerHTML = '';
-                    memEl.appendChild(
-                        Object.assign(document.createElement('div'), {
-                            id: 'mem-empty',
-                            style: 'font-size:12px;color:var(--text-dim);text-align:center;padding:20px 0;font-family:var(--font-code);',
-                            textContent: 'Inicie a compilação para visualizar a pilha de ativação.'
-                        })
-                    );
+                    memEl.appendChild(Object.assign(document.createElement('div'), {
+                        id: 'mem-empty',
+                        style: 'font-size:12px;color:var(--text-dim);text-align:center;padding:20px 0;font-family:var(--font-code);',
+                        textContent: 'Inicie a compilação para visualizar a pilha de ativação.'
+                    }));
                     document.getElementById('stack-pointer-row').style.display = 'none';
-                    document.getElementById('stack-sp-label').style.display = 'none';
+                    document.getElementById('stack-sp-label').style.display    = 'none';
                     return;
                 }
 
-                // FIX 1: Remove a mensagem de "pilha vazia" se houver itens
                 if (emptyEl) emptyEl.remove();
-
-                document.getElementById('stack-sp-label').style.display = 'block';
+                document.getElementById('stack-sp-label').style.display    = 'block';
                 document.getElementById('stack-pointer-row').style.display = 'flex';
 
-                // Get existing block ids
                 const existingIds = new Set(
                     Array.from(memEl.querySelectorAll('.mem-block')).map(el => el.dataset.frameId)
                 );
 
-                // Remove blocks that are no longer in stack (popping animation)
                 memEl.querySelectorAll('.mem-block').forEach(el => {
                     if (!frameNames.includes(el.dataset.frameId)) {
                         el.classList.add('popping');
@@ -639,79 +758,60 @@
                     }
                 });
 
-                // Add new blocks
                 frameNames.forEach((frameName, fi) => {
-                    if (existingIds.has(frameName)) return; // already exists
-
+                    if (existingIds.has(frameName)) return;
                     const scopeObj = scopeData.find(s => s.nome === frameName);
-                    const nivel = scopeObj ? scopeObj.nivel : fi;
-                    const color = blockColors[nivel % blockColors.length];
-                    const addr = '0x' + (0xAFF0 - fi * 0x100).toString(16).toUpperCase();
+                    const nivel    = scopeObj ? scopeObj.nivel : fi;
+                    const color    = blockColors[nivel % blockColors.length];
+                    const addr     = '0x' + (0xAFF0 - fi * 0x100).toString(16).toUpperCase();
 
                     const block = document.createElement('div');
-                    block.className = 'mem-block';
+                    block.className       = 'mem-block';
                     block.dataset.frameId = frameName;
-
-                    // FIX 2: Inicia o bloco vazio e deixa o updateMemBlockVars preencher para evitar duplicatas
                     block.innerHTML = `
-        <div class="mem-block-header">
-          <div class="mem-block-color-strip" style="background:${color}"></div>
-          <span class="mem-block-title">${frameName}</span>
-          <span class="mem-block-tag">nível ${nivel}</span>
-        </div>
-        <div class="mem-block-vars"><span class="empty-vars-msg" style="color:var(--text-dim);font-size:10px;font-family:var(--font-code)">vazio</span></div>
-        <div class="mem-addr">${addr}</div>`;
+                        <div class="mem-block-header">
+                          <div class="mem-block-color-strip" style="background:${color}"></div>
+                          <span class="mem-block-title">${frameName}</span>
+                          <span class="mem-block-tag">nível ${nivel}</span>
+                        </div>
+                        <div class="mem-block-vars"><span class="empty-vars-msg" style="color:var(--text-dim);font-size:10px;font-family:var(--font-code)">vazio</span></div>
+                        <div class="mem-addr">${addr}</div>`;
 
                     memEl.appendChild(block);
-                    requestAnimationFrame(() => {
-                        requestAnimationFrame(() => block.classList.add('visible'));
-                    });
+                    requestAnimationFrame(() => requestAnimationFrame(() => block.classList.add('visible')));
                 });
 
-                // Update SP label
-                const topFrame = frameNames[frameNames.length - 1];
-                document.getElementById('stack-pointer-label').textContent = `SP → ${topFrame}`;
+                document.getElementById('stack-pointer-label').textContent = `SP → ${frameNames[frameNames.length - 1]}`;
             }
 
-            /* ── Update existing mem block vars ── */
             function updateMemBlockVars(frameName, visibleSymIndices) {
                 const block = document.querySelector(`.mem-block[data-frame-id="${frameName}"]`);
                 if (!block) return;
-
-                const vars = symData
-                    .filter((s, i) => s.escopo === frameName && visibleSymIndices.includes(i));
+                const vars    = symData.filter((s, i) => s.escopo === frameName && visibleSymIndices.includes(i));
                 const varsDiv = block.querySelector('.mem-block-vars');
                 if (!varsDiv) return;
-
-                // FIX 2.1: Remove o texto "vazio" se houver variáveis chegando
                 if (vars.length > 0) {
                     const emptyMsg = varsDiv.querySelector('.empty-vars-msg');
                     if (emptyMsg) emptyMsg.remove();
                 }
-
                 const existing = new Set(
                     Array.from(varsDiv.querySelectorAll('.mem-var-chip')).map(c => c.dataset.varName)
                 );
-
                 vars.forEach(v => {
                     if (!existing.has(v.lexema)) {
                         const chip = document.createElement('span');
-                        chip.className = 'mem-var-chip chip-new';
-                        chip.dataset.varName = v.lexema; // Essencial para rastrear e não duplicar
-                        chip.innerHTML = `
-          <span class="chip-name">${v.lexema}</span>
-          <span class="chip-colon">:</span>
-          <span class="chip-type">${v.tipo}</span>`;
+                        chip.className       = 'mem-var-chip chip-new';
+                        chip.dataset.varName = v.lexema;
+                        chip.innerHTML = `<span class="chip-name">${v.lexema}</span><span class="chip-colon">:</span><span class="chip-type">${v.tipo}</span>`;
                         varsDiv.appendChild(chip);
                     }
                 });
             }
 
-            /* ── Apply a step ── */
+            /* ── Apply step ── */
             function applyStep(idx) {
                 const s = steps[idx];
 
-                // Code highlight
                 document.querySelectorAll('.code-line').forEach(el =>
                     el.classList.remove('hl-active', 'hl-hover-sym'));
                 s.code.forEach(ln => {
@@ -726,7 +826,6 @@
                     }
                 });
 
-                // Scopes
                 s.scopeIdx.forEach(i => {
                     const el = scopeEls[i]; if (!el) return;
                     el.classList.add('visible');
@@ -738,7 +837,6 @@
                     }
                 });
 
-                // Symbol rows
                 s.symIdx.forEach(i => {
                     const el = symRows[i]; if (!el) return;
                     el.classList.add('visible');
@@ -756,37 +854,33 @@
                     }
                 });
 
-                // Stack frames
                 buildMemStack(s.mem);
                 s.symIdx.forEach(i => {
                     if (symData[i]) updateMemBlockVars(symData[i].escopo, s.symIdx);
                 });
 
-                // Status bar
                 const sb = document.getElementById('status-bar');
                 sb.className = 'status-bar ' + (s.status.cls || '');
-                const pulse = (s.status.cls === 'info' || s.status.cls === 'read')
+                const pulse  = (s.status.cls === 'info' || s.status.cls === 'read')
                     ? '<span class="status-pulse"></span>' : '';
                 sb.innerHTML = pulse + s.status.text;
 
-                // Counter
                 document.getElementById('step-counter').textContent = `passo ${idx + 1} / ${steps.length}`;
 
-                // Button state
                 const btnNext = document.getElementById('btn-next');
                 if (idx >= steps.length - 1) {
                     btnNext.textContent = '✓ Análise concluída';
-                    btnNext.disabled = true;
+                    btnNext.disabled    = true;
                     document.getElementById('btn-auto').disabled = true;
                     if (autoTimer) { clearInterval(autoTimer); autoTimer = null; document.getElementById('btn-auto').textContent = '⏩ Auto'; }
                 } else {
                     btnNext.textContent = '▶ Próximo passo';
-                    btnNext.disabled = false;
+                    btnNext.disabled    = false;
                 }
             }
 
             /* ── Controls ── */
-            let current = -1;
+            let current   = -1;
             let autoTimer = null;
 
             window.nextStep = function () {
@@ -818,19 +912,19 @@
                 current = -1;
                 hideAll();
                 const sb = document.getElementById('status-bar');
-                sb.className = 'status-bar';
+                sb.className  = 'status-bar';
                 sb.textContent = 'Pronto — clique em "Compilar passo a passo" para iniciar a análise léxico-semântica.';
                 document.getElementById('step-counter').textContent = `passo 0 / ${steps.length}`;
-                document.getElementById('btn-next').textContent = '▶ Compilar passo a passo';
-                document.getElementById('btn-next').disabled = false;
-                document.getElementById('btn-auto').disabled = false;
+                document.getElementById('btn-next').textContent     = '▶ Compilar passo a passo';
+                document.getElementById('btn-next').disabled        = false;
+                document.getElementById('btn-auto').disabled        = false;
             };
 
             if (steps.length <= 1) {
                 document.getElementById('btn-next').disabled = true;
                 document.getElementById('btn-auto').disabled = true;
                 const sb = document.getElementById('status-bar');
-                sb.className = 'status-bar warn';
+                sb.className  = 'status-bar warn';
                 sb.textContent = 'Cadastre escopos e símbolos acima para ativar a simulação de compilação.';
             }
 
@@ -838,5 +932,4 @@
     </script>
 
 </body>
-
 </html>
